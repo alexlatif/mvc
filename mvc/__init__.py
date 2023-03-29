@@ -85,9 +85,12 @@ class ModelVersionController():
         self.model_config = MODELS_CONFIGED
         # TODO self.model_config = MVCModelConfigEnum
 
-        # prefetch dataservices available from datasets
         model_names = self.list_datasets()
+        models = aiplatform.Model.list()
+        endpoints = {}
         for i, model_name in enumerate(model_names):
+
+            # prefetch dataservices available from datasets
             table_names: list[str] = self.show_dataset(model_name=model_name, init=True)
             self.services[model_name] = (
                 MVCDataServiceModel(
@@ -97,7 +100,24 @@ class ModelVersionController():
                 )
             )
 
-        # autocreate buckets configed but not created
+            # prefetch models available
+            for model_file in models:
+                if model_name in model_file.display_name:
+                    self.services[model_name].models.append(model_file.display_name)
+                    model_version = self.services[model_name].version
+                    if self.verbose:
+                        print(f"found model file: {model_file.display_name}, in service: {model_name}, version: {model_version}")
+
+            # prefetch endpoints available
+            for end in list(aiplatform.Endpoint.list()):
+                if model_name in end.display_name:
+                    endpoints[model_name] = end
+                    if self.verbose:
+                        print(f"found endpoint: {end.display_name}, in service: {service}")
+
+        self.endpoints = endpoints     
+
+        # auto-create buckets configed but not created
         models_buckets_not_created = [model_name for model_name in self.model_config.keys() if model_name not in self.services.keys()]
         if len(models_buckets_not_created) > 0:
             print(f"creating model buckets not created: {models_buckets_not_created}")
@@ -105,24 +125,6 @@ class ModelVersionController():
                 self.create_model_bucket(model_name)
         if self.verbose:
             print(f"{len(model_names)} models prefetched")
-
-        # prefetch models available
-        models = aiplatform.Model.list()
-        for model_file in models:
-            self.services[model_name].models.append(model_file.display_name)
-            model_version = self.services[model_name].version
-            if self.verbose:
-                print(f"found model file: {model_file.display_name}, in service: {model_name}, version: {model_version}")
-
-        # prefetch endpoints available
-        endpoints = {}
-        for service in ["model_name"]:
-            for end in list(aiplatform.Endpoint.list()):
-                if service in end.display_name:
-                    endpoints[service] = end
-                    if self.verbose:
-                        print(f"found endpoint: {end.display_name}, in service: {service}")
-        self.endpoints = endpoints
 
     @storage_driver
     def list_buckets(self):
