@@ -70,6 +70,7 @@ class ModelVersionController():
         self.services: dict[str, MvcServiceModel] = {} # service name
         self.service_config = SERVICES_CONFIGED
 
+        print("you cunt!!!!!!!")
         for service_name in self.service_config:
             # prefetch datasets
             datasets = self.list_datasets(service_name=service_name, init=True)
@@ -297,6 +298,8 @@ class ModelVersionController():
     def predict_endpoint(self, service_name: str, model_name: str, x_instance: pd.DataFrame | None = None, x_batch: list[pd.DataFrame] | None = None):
         assert x_instance is not None or x_batch is not None, "Must provide either x_instance or x_batch"
         end_name = f"{service_name}/{model_name}"
+        print(f"endpoint name: {end_name}")
+        print(f"endpoints: {self.services[service_name].endpoints}")
         if end_name in self.services[service_name].endpoints:
             try:
                 if x_instance is not None:
