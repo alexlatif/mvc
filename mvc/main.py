@@ -5,8 +5,6 @@ from pydantic import BaseModel
 import tensorflow as tf
 from google.cloud import storage, bigquery, aiplatform
 
-SERVICES_CONFIGED = ["workout_decisions", "lstm_options"]
-
 
 class McvModelModel(BaseModel):
     model_name: str
@@ -59,7 +57,7 @@ class ModelVersionController():
         self.storage_client: storage.Client = None
         # self.bq_client: bigquery.Client = None
         self.services: dict[str, MvcServiceModel] = {} # service name
-        self.service_config = SERVICES_CONFIGED
+        self.service_config = os.environ["SERVICES_CONFIGED"].split(",")
 
         for service_name in self.service_config:
             # prefetch datasets
