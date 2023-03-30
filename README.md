@@ -1,19 +1,18 @@
 
 # MVC (Model Version Controller)
-## An end-to-End ML ops pipeline controller and collaboration interface built on Google Cloud.
+## An open-source end-to-End ML ops pipeline controller and collaboration interface built on Google Cloud.
 
 ![version control](https://github.com/alexlatif/mvc/blob/main/img.jpg)
 
-Open-source version controlling for datasets and machine learning models. Tools like DVC are complex, tools like Neptune are great, but f#%$ paying for ML infrastructure beyond compute. This is open-source, simple and will cover everything you need to deploy robust and monitored machine learning models on the latest hardware by Google.
+When it comes to version controlling datasets and machine learning models Amazon and Google don't fully support this, tools like DVC are complex, tools like Neptune are great, but f#%$ paying for ML infrastructure beyond compute. This is open-source, simple and will cover everything you need to deploy robust and monitored machine learning models on the latest Google hardware.
 
 ### Features:
 1. Save, version control and share datasets on Google Cloud Storage.
 2. Save, version control and share models on Vertex AI.
 3. Create training runs on Vertex AI.
 4. Make predictions on endpoints on Vertex AI.
-5. Make predictions on endpoints on Vertex AI.
-6. Monitor model performance in training and prediction runs.
-7. Share notebooks on colab and Workbench AI easily.
+5. Monitor model performance in training and prediction runs.
+6. Share notebooks on Colab and Workbench easily.
 
 ### Values:
 1. Open-source
@@ -22,7 +21,7 @@ Open-source version controlling for datasets and machine learning models. Tools 
 
 ### To collaborate:
 1. Request features in the discussion sections
-2. To collaborate email me at ale@watz.coach (please avoid forking where possible as it would be great to collaborate to improve MVC)
+2. To extend email me at ale@watz.coach (please avoid forking where possible as it would be great to collaborate to improve MVC for everyone)
 
 ## Usage
 
