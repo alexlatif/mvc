@@ -1,5 +1,5 @@
 
-# MVC (Model Version Controller) :brain: :cloud: :zero: 
+# MVC (Model Version Controller) :cloud: :brain: :zero: 
 ## An open-source end-to-End ML ops pipeline controller and collaboration interface built on Google Cloud.
 
 ![version control](https://github.com/alexlatif/mvc/blob/main/img.jpg)
@@ -18,6 +18,7 @@ When it comes to version controlling datasets and machine learning models Amazon
 1. Open-source
 2. Simple
 3. Pythonic
+4. :heart:
 
 ### To collaborate:
 1. Request features in the discussion sections
