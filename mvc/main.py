@@ -52,8 +52,8 @@ class ModelVersionController():
     '''
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.project_id: str = "ml-wtz"
-        self.region: str = "us-east1"
+        self.project_id: str = os.environ["PROJECT_ID"]
+        self.region: str = os.environ["REGION"]
         self.storage_client: storage.Client = None
         # self.bq_client: bigquery.Client = None
         self.services: dict[str, MvcServiceModel] = {} # service name
