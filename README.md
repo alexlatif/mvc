@@ -4,7 +4,7 @@
 
 ![version control](https://github.com/alexlatif/mvc/blob/main/img.jpg)
 
-Open-source version controlling for datasets and machine learning models. Tools like DVC are complex, this is pythonic and simple. Tools like Neptune are great, but f#%$ paying for ML infrastructure beyond compute. This is open-source, simple and will cover everything you need to deploy robust and monitored machine learning models on the latest hardware by Google.
+Open-source version controlling for datasets and machine learning models. Tools like DVC are complex, tools like Neptune are great, but f#%$ paying for ML infrastructure beyond compute. This is open-source, simple and will cover everything you need to deploy robust and monitored machine learning models on the latest hardware by Google.
 
 ### Features:
 1. Save, version control and share datasets on Google Cloud Storage.
