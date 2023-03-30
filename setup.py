@@ -8,4 +8,5 @@ setup(name='mvc',
       author_email='ale@watz.coach',
       license='MIT',
       packages=['mvc'],
-      zip_safe=False)
+      zip_safe=False
+)
