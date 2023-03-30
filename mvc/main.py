@@ -91,7 +91,7 @@ class ModelVersionController():
 
             # prefetch endpoints
             for end in list(aiplatform.Endpoint.list()):
-                if "model_name" in end.display_name:
+                if service_name in end.display_name:
                     self.services[service_name].endpoints[end.display_name] = end
 
     def gen_file_path(self, dataset_name: str, version: str, file_format: str):
