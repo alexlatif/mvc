@@ -77,9 +77,9 @@ Requires using the Vertex AI GUI to set the default model version for each servi
 res = mvc.predict_endpoint(service_name=service_name, model_name=model_file_name, x_instance=holdout_x)
 ```
 
-## 
 
-TODO's
+
+## TODO's
 - TODO - train online with custom image containers
 - TODO - update model version after training
 - TODO - predict batches
