@@ -10,7 +10,7 @@ When it comes to version controlling datasets and machine learning models Amazon
 1. Save, version control and share datasets on Google Cloud Storage.
 2. Save, version control and share models on Vertex AI.
 3. Create training runs on Vertex AI.
-4. Make predictions on endpoints on Vertex AI.
+4. Call prediction endpoints from Vertex AI.
 5. Monitor model performance in training and prediction runs.
 6. Share notebooks on Colab and Workbench easily.
 
