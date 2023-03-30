@@ -91,8 +91,11 @@ class ModelVersionController():
 
             # prefetch endpoints
             for end in list(aiplatform.Endpoint.list()):
-                if service_name in end.display_name:
-                    self.services[service_name].endpoints[end.display_name] = end
+                end_model = end.list_models()
+                if len(end_model) > 0:
+                    # TODO - multi-model endpoint unavailable
+                    model_name = end_model[0].display_name
+                    self.services[service_name].endpoints[model_name] = end
 
     def gen_file_path(self, dataset_name: str, version: str, file_format: str):
         return f"{dataset_name}_{version}.{file_format}"
@@ -292,13 +295,13 @@ class ModelVersionController():
 
     def predict_endpoint(self, service_name: str, model_name: str, x_instance: pd.DataFrame | None = None, x_batch: list[pd.DataFrame] | None = None):
         assert x_instance is not None or x_batch is not None, "Must provide either x_instance or x_batch"
-
-        if model_name in self.services[service_name].endpoints:
+        end_name = f"{service_name}/{model_name}"
+        if end_name in self.services[service_name].endpoints:
             try:
                 if x_instance is not None:
-                    predictions = self.services[service_name].endpoints[model_name].predict(instances=x_instance)
+                    predictions = self.services[service_name].endpoints[end_name].predict(instances=x_instance)
                 else:
-                    predictions = self.services[service_name].endpoints[model_name].batch_predict(
+                    predictions = self.services[service_name].endpoints[end_name].batch_predict(
                         instances=x_batch, parameters={"confidence_threshold": 0.5}
                     )
                 return predictions
