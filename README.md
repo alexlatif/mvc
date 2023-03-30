@@ -1,6 +1,6 @@
 
 # MVC (Model Version Controller) :cloud: :brain: :zero: 
-## An open-source end-to-End ML ops pipeline controller and collaboration interface built on Google Cloud.
+## An open-source end-to-End ML ops controller and collaboration interface built on Google Cloud.
 
 ![version control](https://github.com/alexlatif/mvc/blob/main/img.jpg)
 
