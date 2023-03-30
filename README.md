@@ -2,9 +2,11 @@
 # MVC (Model Version Controller)
 ## An end-to-End ML ops pipeline controller and collaboration interface built on Google Cloud.
 
+![version control](hhttps://dagshub.com/blog/content/images/2020/11/yancy-min-842ofHC6MaI-unsplash--1-.jpg)
+
 Open-source version controlling for datasets and machine learning models. Tools like DVC are complex, this is pythonic and simple. Tools like Neptune are great, but f#%$ paying for ML infrastructure beyond compute. This is open-source, simple and will cover everything you need to deploy robust and monitored machine learning models on the latest hardware by Google.
 
-Features:
+### Features:
 1. Save, version control and share datasets on Google Cloud Storage.
 2. Save, version control and share models on Vertex AI.
 3. Create training runs on Vertex AI.
@@ -13,12 +15,12 @@ Features:
 6. Monitor model performance in training and prediction runs.
 7. Share notebooks on colab and Workbench AI easily.
 
-Values:
+### Values:
 1. Open-source
 2. Simple
 3. Pythonic
 
-To collaborate:
+### To collaborate:
 1. Request features in the discussion sections
 2. To collaborate email me at ale@watz.coach (please avoid forking where possible as it would be great to collaborate to improve MVC)
 
