@@ -147,7 +147,7 @@ class ModelVersionController():
             bucket.create()
             return []
         blobs = bucket.list_blobs()
-        datasets = [b.name for b in blobs]
+        datasets = [b.name for b in blobs if "vertex_ai_auto_staging" not in b.name]
 
         if not init:
             self.services[service_name].datasets = datasets
