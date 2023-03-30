@@ -95,7 +95,8 @@ class ModelVersionController():
                 if len(end_model) > 0:
                     # TODO - multi-model endpoint unavailable
                     model_name = end_model[0].display_name
-                    self.services[service_name].endpoints[model_name] = end
+                    if service_name in model_name:
+                        self.services[service_name].endpoints[model_name] = end
 
     def gen_file_path(self, dataset_name: str, version: str, file_format: str):
         return f"{dataset_name}_{version}.{file_format}"
