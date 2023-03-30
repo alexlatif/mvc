@@ -7,8 +7,8 @@
 When it comes to version controlling datasets and machine learning models Amazon and Google don't fully support this, tools like DVC are complex, tools like Neptune are great, but f#%$ paying for ML infrastructure beyond compute. This is open-source, simple and will cover everything you need to deploy robust and monitored machine learning models on the latest Google hardware.
 
 ### Features:
-1. Save, version control and share datasets on Google Cloud Storage.
-2. Save, version control and share models on Vertex AI.
+1. Version control and share datasets on Google Cloud Storage.
+2. Version control and share models on Vertex AI.
 3. Create training runs on Vertex AI.
 4. Call prediction endpoints from Vertex AI.
 5. Monitor model performance in training and prediction runs.
