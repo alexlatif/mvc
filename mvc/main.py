@@ -66,7 +66,7 @@ class ModelVersionController():
         self.project_id: str = "ml-wtz"
         self.region: str = "us-east1"
         self.storage_client: storage.Client = None
-        self.bq_client: bigquery.Client = None
+        # self.bq_client: bigquery.Client = None
         self.services: dict[str, MvcServiceModel] = {} # service name
         self.service_config = SERVICES_CONFIGED
 
