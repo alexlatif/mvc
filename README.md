@@ -2,7 +2,7 @@
 # MVC (Model Version Controller)
 ## An end-to-End ML ops pipeline controller and collaboration interface built on Google Cloud.
 
-![version control](hhttps://dagshub.com/blog/content/images/2020/11/yancy-min-842ofHC6MaI-unsplash--1-.jpg)
+![version control](https://github.com/alexlatif/mvc/blob/main/img.jpg)
 
 Open-source version controlling for datasets and machine learning models. Tools like DVC are complex, this is pythonic and simple. Tools like Neptune are great, but f#%$ paying for ML infrastructure beyond compute. This is open-source, simple and will cover everything you need to deploy robust and monitored machine learning models on the latest hardware by Google.
 
