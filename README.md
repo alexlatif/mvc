@@ -80,9 +80,9 @@ res = mvc.predict_endpoint(service_name=service_name, model_name=model_file_name
 
 
 ## TODO's
-- TODO - train online with custom image containers
-- TODO - update model version after training
-- TODO - predict batches
-- TODO - log and save training and prediction runs to GCS
-- TODO - implement tensorboards saved to GCS
-- TODO - create model summary for monitoring 
+[] train online with custom image containers
+[] update model version after training
+[] predict batches
+[] log and save training and prediction runs to GCS
+[] implement tensorboards saved to GCS
+[] create model summary for monitoring 
