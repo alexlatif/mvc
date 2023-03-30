@@ -12,7 +12,7 @@ When it comes to version controlling datasets and machine learning models Amazon
 3. Create training runs on Vertex AI.
 4. Call prediction endpoints from Vertex AI.
 5. Monitor model performance during training and prediction runs.
-6. Share notebooks on Colab and Workbench easily.
+6. Share notebooks on Colab and Workbench with ease.
 
 ### Values:
 1. Open-source
