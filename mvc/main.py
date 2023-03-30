@@ -8,15 +8,6 @@ from google.cloud import storage, bigquery, aiplatform
 SERVICES_CONFIGED = ["workout_decisions", "lstm_options"]
 
 
-# TODO - train online with custom image containers
-# TODO - update model version after training
-# TODO - predict batches
-# TODO - log and save training and prediction runs to GCS
-# TODO - implement tensorboards saved to GCS
-# ---
-# TODO - create generic shareable interface
-# TODO - doc + catchy medium article
-
 class McvModelModel(BaseModel):
     model_name: str
     latest_version: int
