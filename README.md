@@ -85,4 +85,4 @@ res = mvc.predict_endpoint(service_name=service_name, model_name=model_file_name
 - [ ] log and save training and prediction runs to GCS
 - [ ] implement tensorboards saved to GCS
 - [ ] create model summary for monitoring 
-- [ ] tests. lol.
+- [ ] tests ... :sweat_smile:
