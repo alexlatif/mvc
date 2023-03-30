@@ -21,7 +21,7 @@ When it comes to version controlling datasets and machine learning models Amazon
 4. :heart:
 
 ### To collaborate:
-1. Request features in the ![discussion](https://github.com/alexlatif/mvc/discussions) sections
+1. Request features in the [discussion](https://github.com/alexlatif/mvc/discussions) sections
 2. To extend email me at ale@watz.coach (please avoid forking where possible as it would be great to collaborate to improve MVC for everyone)
 
 ## Usage
