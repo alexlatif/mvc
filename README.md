@@ -22,7 +22,7 @@ When it comes to version controlling datasets and machine learning models Amazon
 
 ### To collaborate:
 1. Request features in the [discussions](https://github.com/alexlatif/mvc/discussions).
-2. To extend email me at ale@watz.coach (pls opt to improve over fork)
+2. To extend email me at ale@watz.coach (pls opt to improve for all over fork)
 
 ## Usage
 
