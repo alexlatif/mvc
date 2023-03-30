@@ -1,34 +1,39 @@
+import os
 import shutil
 import pandas as pd
-from enum import Enum
 from pydantic import BaseModel
-from google.cloud import bigquery, storage
-from google.cloud import aiplatform
 import tensorflow as tf
+from google.cloud import storage, bigquery, aiplatform
 
-MODEL_PREDICT_CONTAINER_URI = "us-docker.pkg.dev/vertex-ai/prediction/tf2-cpu.2-11:latest"
+SERVICES_CONFIGED = ["workout_decisions", "lstm_options"]
 
-# what models are available and what version are we using
-MODELS_CONFIGED = {
-    "lstm_options": "version_1",
-}
 
-# TODO online training
-# TODO version control data
-# TODO batch predictions
-# TODO experiments
-# TODO model monitoring
-# TODO models config as enum?
+# TODO - train online with custom image containers
+# TODO - update model version after training
+# TODO - predict batches
+# TODO - log and save training and prediction runs to GCS
+# TODO - implement tensorboards saved to GCS
+# ---
+# TODO - create generic shareable interface
+# TODO - doc + catchy medium article
 
-def bq_driver(func):
-    def wrapped(*args, **kwargs):
-        try:
-            args[0].bq_client = bigquery.Client(project=args[0].project_id)
-            result = func(*args, **kwargs)
-        except Exception as e:
-            raise e
-        return result
-    return wrapped
+class McvModelModel(BaseModel):
+    model_name: str
+    latest_version: int
+    default_version: int
+    training_runs: list[dict] = []
+    prediction_runs: list[dict] = []
+    metric_summary: list[dict] = []
+    tensorboards: list[dict] = []
+
+class MvcServiceModel(BaseModel):
+    datasets: list[str]
+    models: dict[str, McvModelModel] # model_name: McvModelModel
+    endpoints: dict[str, aiplatform.models.Endpoint] # model_name: Enpoint
+
+    class Config:
+        arbitrary_types_allowed = True
+
 
 def storage_driver(func):
     def wrapped(*args, **kwargs):
@@ -40,333 +45,188 @@ def storage_driver(func):
         return result
     return wrapped
 
-class MVCModelLogModel(BaseModel):
-    model_filename: str
-    prediction_runs: list[dict]
-    training_runs: list[dict]
-    metric_summary: list[dict]
-    tensorboards: list[dict]
-
-class MVCDataServiceModel(BaseModel):
-    model_name: str
-    version: str
-    table_names: list[str]
-    table_data: dict[str, pd.DataFrame] = {} # table_name: dataframe
-    models: list[str] = [] # strings for model file names
-    endpoints: list[str] = [] # strings for model file namess
-    # TODO logs: list[MVCLogModel] = []
-
-    class Config:
-        arbitrary_types_allowed = True
-
-
-class MVCModelConfigEnum(Enum):
-    model_name = "version_x"
 
 class ModelVersionController():
     '''
-    ## End-to-End ML ops pipeline controller and collaboration interface.
-    
-    ### Parameters:
-    model_name (str): name of model bucket stored in Google Storage use by Vertex AI
-    refresh_data (bool): chose to use cached version or refresh
-    
-    ### Returns:
-    reverse (pd.DataFrame): dataframe of table
+    ## End-to-End ML ops pipeline controller and collaboration interface built on Google Cloud.
+
+    Uses Google Cloud Storage to save datasets where data version controlling is handled by MVC.
+
+    Uses Vertex AI model registry to save model, versions and create training runs.
+
+    Uses Vertex AI to host endpoints and make predictions.
+
+    - Configure SERVICES_CONFIGED to specify which ML services MVC should be aware of.
+    - Set enviroment variables for credentials to GCP instance.
+    - Use Vertex AI GUI to set default model version for each service.
+    - Use Vertex AI GUI to deploy model to endpoint.
     '''
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.verbose: bool = False
         self.project_id: str = "ml-wtz"
         self.region: str = "us-east1"
         self.storage_client: storage.Client = None
         self.bq_client: bigquery.Client = None
-        self.services: dict[str, MVCDataServiceModel] = {}
-        self.model_config = MODELS_CONFIGED
-        # TODO self.model_config = MVCModelConfigEnum
+        self.services: dict[str, MvcServiceModel] = {} # service name
+        self.service_config = SERVICES_CONFIGED
 
-        model_names = self.list_datasets()
-        models = aiplatform.Model.list()
-        endpoints = {}
-        for i, model_name in enumerate(model_names):
-
-            # prefetch dataservices available from datasets
-            table_names: list[str] = self.show_dataset(model_name=model_name, init=True)
-            self.services[model_name] = (
-                MVCDataServiceModel(
-                    model_name=model_name,
-                    version=self.model_config[model_name],
-                    table_names=table_names,
-                )
+        for service_name in self.service_config:
+            # prefetch datasets
+            datasets = self.list_datasets(service_name=service_name, init=True)
+            self.services[service_name] = MvcServiceModel(
+                datasets=datasets,
+                models={},
+                endpoints={},
             )
+            # prefetch models
+            aiplatform.init(
+                project=self.project_id,
+                location=self.region,
+                staging_bucket=f"gs://{service_name}",
+            )
+            for model in aiplatform.Model.list():
+                if service_name in model.display_name:
+                    file_name = model.display_name.split("/")[-1]
+                    self.create_service_model(service_name=service_name, model_file_name=file_name, model=model)
 
-            # prefetch models available
-            for model_file in models:
-                if model_name in model_file.display_name:
-                    self.services[model_name].models.append(model_file.display_name)
-                    model_version = self.services[model_name].version
-                    if self.verbose:
-                        print(f"found model file: {model_file.display_name}, in service: {model_name}, version: {model_version}")
-
-            # prefetch endpoints available
+            # prefetch endpoints
             for end in list(aiplatform.Endpoint.list()):
-                if model_name in end.display_name:
-                    endpoints[model_name] = end
-                    if self.verbose:
-                        print(f"found endpoint: {end.display_name}, in service: {service}")
+                if "model_name" in end.display_name:
+                    self.services[service_name].endpoints[end.display_name] = end
 
-        self.endpoints = endpoints     
-
-        # auto-create buckets configed but not created
-        models_buckets_not_created = [model_name for model_name in self.model_config.keys() if model_name not in self.services.keys()]
-        if len(models_buckets_not_created) > 0:
-            print(f"creating model buckets not created: {models_buckets_not_created}")
-            for model_name in models_buckets_not_created:
-                self.create_model_bucket(model_name)
-        if self.verbose:
-            print(f"{len(model_names)} models prefetched")
-
-    @storage_driver
-    def list_buckets(self):
-        buckets = self.storage_client.list_buckets()
-        return [bucket.name for bucket in buckets if bucket.name in self.services.keys()]
-
-    @storage_driver
-    def list_blobs(self, model_name: str):
-        model_version = self.services[model_name].version
-        blobs = self.storage_client.list_blobs(model_name)
-        return [blob.name for blob in blobs if model_version in blob.name]
-
-    @storage_driver
-    def create_model_bucket(self, model_bucket_name: str, storage_class='STANDARD'): 
-
-        # if model_bucket_name not in self.services:
-        bucket = self.storage_client.bucket(model_bucket_name)
-        bucket.storage_class = storage_class
+    def gen_file_path(self, dataset_name: str, version: str, file_format: str):
+        return f"{dataset_name}_{version}.{file_format}"
     
-        if not bucket.exists():
-            bucket = self.storage_client.create_bucket(bucket, location=self.region) 
+    def gen_dataset_storage_path(self, service_name: str, dataset_name: str, version: str, file_format: str):
+        file_path = self.gen_file_path(dataset_name=dataset_name, version=version, file_format=file_format)
+        return f"gs://{service_name}/{file_path}"
+    
+    def gen_gcs_file_path(self, service_name: str, dataset_name: str, version: str | None = None, file_format: str = "csv"):
+        datasets = [d for d in self.services[service_name].datasets if dataset_name in d]
 
-        self.services[model_bucket_name] = MVCDataServiceModel(model_name=model_bucket_name, version="version_0", table_names=[])
-        return f'Service bucket with model_name="{bucket.name}" successfully created. 1) add model_name to MVC config 2) create create_dataset_table'
+        if not version:
+            curr_version = str(max([int(d.split(".")[0].split("_")[-1]) for d in datasets]))
+            file_path = self.gen_dataset_storage_path(service_name=service_name, dataset_name=dataset_name, version=curr_version, file_format=file_format)
+        else:
+            file_path = self.gen_dataset_storage_path(service_name=service_name, dataset_name=dataset_name, version=version, file_format=file_format)
+
+        return file_path
 
     @storage_driver
-    def delete_model_bucket(self, model_bucket_name: str, confirm: bool = False):
-        # assert model_bucket_name in self.services.keys(), f"model_name {model_bucket_name} not found in services"
-        assert confirm, "are you sure you want to delete a model service? -> all versions of data and models will be destroyed"
-        bucket = self.storage_client.get_bucket(model_bucket_name)
-        bucket.delete()
-        if model_bucket_name in self.services.keys():
-            del self.services[model_bucket_name]
-        if self.verbose:
-            print(f"Model bucket {bucket.name} deleted")
+    def create_dataset(self, df: pd.DataFrame, service_name: str, dataset_name: str, new_version: bool = False, file_format: str = "csv"):
+        datasets = self.list_datasets(service_name)
+        d_avail = [d for d in datasets if dataset_name in d]
 
-    @bq_driver
-    def list_datasets(self, configed_only=True):
-        dataset_req = self.bq_client.list_datasets()  # Make an API request.
-        models = [dataset.dataset_id for dataset in dataset_req]
-        if configed_only:
-            models = [model for model in models if model in self.model_config.keys()]
-        if len(models) > 0:
-            if self.verbose:
-                print(f"Datasets in project {self.project_id}:")
-            for dataset in models:
-                if self.verbose:
-                    print(f"\t{dataset}")
+        overwrite = False
+        if len(d_avail) < 1:
+            version = "1"
         else:
-            if self.verbose:
-                print(f"{self.project} project does not contain any datasets.")
+            versions = [int(d.split(".")[0].split("_")[-1]) for d in d_avail]
+            latest_version = max(versions)
+            if new_version:
+                version = str(latest_version + 1)
+            else:
+                overwrite = True
+                version = str(latest_version)
 
-        return models
+        if overwrite:
+            self._delete_datasets(service_name=service_name, dataset_name=dataset_name, version=version, file_format=file_format)
 
-    @bq_driver
-    def show_dataset(self, model_name: str, init=False):
+        storage_path = self.gen_dataset_storage_path(service_name=service_name, dataset_name=dataset_name, version=version, file_format=file_format)     
+        df.to_csv(storage_path, index=False)
+
+        return self.list_datasets(service_name)
+
+    @storage_driver
+    def list_datasets(self, service_name: str, init=False):
         if not init:
-            assert model_name in self.services, f"{model_name} not found in services - maybe MVC.create_model_bucket() first?"
-        dataset = self.bq_client.get_dataset(model_name)  # Make an API request.
+            assert service_name in self.services, "service name not in CONFIG"
 
-        full_dataset_id = "{}.{}".format(dataset.project, dataset.dataset_id)
-        if self.verbose:
-            print(f"Dataset ID: {full_dataset_id}")
-            print("Labels:")
-        labels = dataset.labels
-        if labels:
-            for label, value in labels.items():
-                print("\t{}: {}".format(label, value))
-        else:
-            if self.verbose:
-                print("\tDataset has no labels defined.")
+        bucket = self.storage_client.bucket(service_name)
+        if not bucket.exists():
+            bucket.create()
+            return []
+        blobs = bucket.list_blobs()
+        datasets = [b.name for b in blobs]
 
-        if self.verbose:
-            print("Tables:")
-        tables_req = self.bq_client.list_tables(dataset)  # Make an API request(s).
-        tables = [table.table_id for table in tables_req]
-        if tables:
-            for table in tables:
-                if self.verbose:
-                    print("\t{}".format(table))
-        else:
-            if self.verbose:
-                print("\tThis dataset does not contain any tables.")
-        
-        return tables
+        if not init:
+            self.services[service_name].datasets = datasets
 
-    # VERTEX DATASETS
-    @bq_driver
-    def create_dataset_table(self, df: pd.DataFrame, model_name: str, table_name: str, version: str | None = None, create_new_version: bool = False):
-        '''
-        ## Create new table as Vertex Dataset
-        
-        ### Parameters:
-        model_name (str): name of model bucket stored in Google Storage use by Vertex AI
-        refresh_data (bool): chose to use cached version or refresh
-        
-        ### Returns:
-        reverse (pd.DataFrame): dataframe of table
-        '''
-        assert model_name in self.services, f"{model_name} not found in services - maybe MVC.create_model_bucket() first?"
+        return datasets
+
+    def get_dataset(self, service_name: str, dataset_name: str, version: str | None = None, file_format: str = "csv"):
+        datasets = [d for d in self.services[service_name].datasets if dataset_name in d]
+        file_path = self.gen_gcs_file_path(service_name=service_name, dataset_name=dataset_name, version=version, file_format=file_format)
+        for d in datasets:
+            if d in file_path:
+                df = pd.read_csv(file_path)
+                if "TIMESTAMP" in df.columns:
+                    df["TIMESTAMP"] = pd.to_datetime(df["TIMESTAMP"])
+                return df
+        return pd.DataFrame()
+
+    @storage_driver
+    def _delete_datasets(self, service_name: str, dataset_name: str, version: str | None = None, file_format: str = "csv"):
+        bucket = self.storage_client.bucket(service_name)
+        blobs = bucket.list_blobs()
+        for blob in blobs:
+            if version is not None:
+                file_name = self.gen_file_path(dataset_name=dataset_name, version=version, file_format=file_format)
+                if file_name == blob.name:
+                    blob.delete()
+            else:
+                if dataset_name in blob.name:
+                    blob.delete()
+
+    def create_vertex_dataset(self, service_name: str, dataset_name: str, version: str | None = None):
+        file_path = self.gen_gcs_file_path(service_name=service_name, dataset_name=dataset_name, version=version)
+
         aiplatform.init(
             project=self.project_id,
             location=self.region,
-            staging_bucket=model_name,
-            # custom google.auth.credentials.Credentials
-            # credentials=my_credentials,
-
-            # encryption_spec_key_name=my_encryption_key_name,
-            # experiment='my-experiment',
-            # experiment_description='my experiment decsription'
+            staging_bucket=service_name,
         )
-        # create table name
-        current_version = self.services[model_name].version
-        if version is None and create_new_version is True:
-            old_num = current_version.split("_")[-1]
-            new_num = int(old_num) + 1
-            current_version = f"version_{new_num}"
-        assert current_version == self.services[model_name].version, f"model {model_name} version {version} not found in available services - maybe MVC.create_model() first?"
-        bq_table_name = f"{current_version}-{table_name}"
 
-        # TODO currently delete the re-write table if exists, can only update tables once schema validations set
-        if bq_table_name in self.services[model_name].table_names:
-            self.download_table(model_name=model_name, version=current_version, table_name=table_name, delete=True)
-            if self.verbose:
-                print(f"overwriting table {bq_table_name}")
-        
-        # create table uri
-        bq_dataset_id = f"{self.project_id}.{model_name}"
-        training_data_uri = f"bq://{bq_dataset_id}.{bq_table_name}"
-        bq_dataset = bigquery.Dataset(bq_dataset_id)
-        self.bq_client.create_dataset(bq_dataset, exists_ok=True)
+        for d in aiplatform.TimeSeriesDataset.list():
+            if d.display_name == dataset_name:
+                d.delete()
 
-        # create table
-        ds = aiplatform.TabularDataset.create_from_dataframe(
-            df_source=df,
-            staging_path=training_data_uri,
-            display_name=table_name,
+        aiplatform.TimeSeriesDataset.create(
+            display_name=dataset_name,
+            gcs_source=[file_path],
         )
-        ds.wait()
-        # ensure data is in sync
-        self.services[model_name].table_names.append(bq_table_name)
-        created_table = self.download_table(model_name=model_name, version=current_version, table_name=table_name)
-        self.services[model_name].table_data[table_name] = created_table
-        return self.services[model_name].table_data[table_name]
 
-    @bq_driver
-    def download_table(self, model_name: str, table_name: str, version: str | None = None, delete: bool = False) -> pd.DataFrame:
-        '''
-        Download table from BigQuery
-            - only uses a singular configed version specified in MVC.model_config
-            - if version is specified, it must match the configed version, otherwise use configed version
-        '''
-        assert model_name in self.services, f"{model_name} not found in services - maybe MVC.create_model_bucket() first?"
-        if version is None:
-            version = self.services[model_name].version
-        else:
-            assert version == self.services[model_name].version, f"version {version} not found in available services - maybe change MVC.model_config?"
-        if not delete:
-            assert f"{version}-{table_name}" in self.services[model_name].table_names, f"table {table_name} not found in available services - maybe call MVC.create_dataset_table?"
-        
+    def _model_storage_path(self, service_name: str, file_name: str) -> str:
+        return f"{service_name}/{file_name}"
+
+    def _model_storage_name(self, service_name: str, file_name: str) -> str:
+        return f"{service_name}-{file_name}"
+
+    def create_service_model(self, service_name: str, model_file_name: str, model) -> bool:
         try:
-            bq_dataset_id = f"{self.project_id}.{model_name}"
-            bq_table_uri = f"bq://{bq_dataset_id}.{version}-{table_name}"
-            prefix = "bq://"
-            if bq_table_uri.startswith(prefix):
-                bq_table_uri = bq_table_uri[len(prefix) :]
-            table = self.bq_client.get_table(bq_table_uri)
-            df = self.bq_client.list_rows(table).to_dataframe()
+            default_version = int([m.version_id for m in model.versioning_registry.list_versions() if "default" in m.version_aliases][0])
+        except:
+            default_version = 0
 
-            if delete:
-                self.bq_client.delete_table(table)
-                self.services[model_name].table_names.remove(f"{version}-{table_name}")
-                self.services[model_name].table_data.pop(table_name)
-                if self.verbose:
-                    print(f"table {table_name} deleted")
-            return df
-
-        except Exception as e:
-            if self.verbose:
-                print(f"error downloading table {table_name} from {bq_table_uri}")
-            if delete:
-                pass
-            else:
-                raise ValueError(f"error downloading table {table_name} from {bq_table_uri}")
-
-    def delete_dataset(self, model_name: str, version: str,  table_name: str | None = None):
-        if table_name is None:
-            if self.verbose:
-                print(f"deleting all tables for {model_name}-{version}")
-            for table_name in self.services[model_name].table_names:
-                if self.verbose:
-                    print(f"\t - deleting table {table_name}")
-                self.download_table(model_name=model_name, version=version, table_name=table_name, delete=True)
-        else:
-            self.download_table(model_name=model_name, version=version, table_name=table_name, delete=True)
-
-    def get_table(self, model_name: str, version: str, table_name: str, refresh_data: bool = True) -> pd.DataFrame:
-        '''
-        ## Get table from local cache or download from BigQuery Vertex AI Datasets
-
-        ### Parameters:
-        model_name (str): name of model bucket stored in Google Storage use by Vertex AI
-        refresh_data (bool): chose to use cached version or refresh
-
-        ### Returns:
-        reverse (pd.DataFrame): dataframe of table 
-        '''
-        if table_name in self.services[model_name].table_data.keys() and refresh_data is False:
-            print(f"table {table} found locally")
-            return self.services[model_name].table_data[table_name]
-        
-        table = self.download_table(model_name=model_name, version=version, table_name=table_name)
-        self.services[model_name].table_data[table_name] = table
-        if self.verbose:
-            print(f"table {table} downloaded")
-        return self.services[model_name].table_data[table_name]
-
-    def get_tables(self, model_name: str, version: str) -> list[pd.DataFrame]:
-        tables: list[pd.DataFrame] = []
-        for table in self.services[model_name].table_names:
-            tables.append(self.get_table(model_name=model_name, version=version, table_name=table))
-        return tables
-
-    def _model_storage_path(self, model_name: str, version: str, file_name: str) -> str:
-        return f"{model_name}/{version}/{file_name}"
-
-    def _model_storage_name(self, model_name: str, version: str, file_name: str) -> str:
-        return f"{model_name}-{version}-{file_name}"
+        model = McvModelModel(
+            model_name=model_file_name,
+            latest_version=model.version_id,
+            default_version=default_version,
+        )
+        self.services[service_name].models[model_file_name] = model
+        return True
 
     # VERTEX MODELS
     @storage_driver
-    def save_model(self, model_object: tf.keras.models.Model, model_name: str, model_file_name: str, garbage_collect: bool = True): 
-        assert model_name in self.services.keys(), f"model {model_name} not found in available services - maybe call MVC.create_model?"
-        model_version = self.services[model_name].version
-        registry_uri = self._model_storage_path(model_name=model_name, version=model_version, file_name=model_file_name)
+    def save_model(self, model_object: tf.keras.models.Model, service_name: str, model_file_name: str, garbage_collect: bool = True): 
+        registry_uri = self._model_storage_path(service_name=service_name, file_name=model_file_name)
         
         model_object.save(registry_uri)
 
         aiplatform.init(
             project=self.project_id,
             location=self.region,
-            staging_bucket=f"gs://{model_name}",
+            staging_bucket=f"gs://{service_name}",
         )
 
         models = aiplatform.Model.list(filter=(f"display_name={registry_uri}"))
@@ -377,7 +237,7 @@ class ModelVersionController():
                 artifact_uri=registry_uri,
                 # container_predict_route="/predict",
                 # container_health_route="/health",
-                serving_container_image_uri=MODEL_PREDICT_CONTAINER_URI,
+                serving_container_image_uri=os.environ["MODEL_PREDICT_CONTAINER_URI"],
                 is_default_version=True,
                 # version_description="This is the first version of the model",
             )
@@ -390,7 +250,7 @@ class ModelVersionController():
                 artifact_uri=registry_uri,
                 # container_predict_route="/predict",
                 # container_health_route="/health",
-                serving_container_image_uri=MODEL_PREDICT_CONTAINER_URI,
+                serving_container_image_uri=os.environ["MODEL_PREDICT_CONTAINER_URI"],
                 is_default_version=False,
                 parent_model=parent_model,
                 # version_description="This is the first version of the model",
@@ -401,63 +261,44 @@ class ModelVersionController():
         if garbage_collect:
             shutil.rmtree(registry_uri)
 
-        if model_file_name not in self.services[model_name].models:
-            self.services[model_name].models.append(model_file_name)
+        if model_file_name not in self.services[service_name].models:
+            return self.create_service_model(service_name=service_name, model_file_name=model_file_name, model=model_uploaded)
 
-        else:
-            if self.verbose:
-                print(f"model file [{model_file_name}] with new version [{model_uploaded.version_id}] in service [{model_name}/{model_version}]")
-
-        if self.verbose:
-            print(f"model file [{model_file_name}] saved in service [{model_name}/{model_version}]")
-
+        self.services[service_name].models[model_file_name].latest_version = model_uploaded.version_id
         return True
 
     @storage_driver
-    def load_model(self, model_name: str, model_file_name: str, delete: bool = False, version: str = None) -> tf.keras.models.Model | bool:
-        assert model_name in self.services.keys(), f"model {model_name} not found in available services - maybe call MVC.create_model?"
-        model_version = self.services[model_name].version
-
+    def load_model(self, service_name: str, model_file_name: str, latest_dev_version: bool = False) -> tf.keras.models.Model | bool:
+        
         aiplatform.init(
             project=self.project_id,
             location=self.region,
-            staging_bucket=f"gs://{model_name}",
+            staging_bucket=f"gs://{service_name}",
         )
 
-        registry_uri = self._model_storage_path(model_name=model_name, version=model_version, file_name=model_file_name)
+        registry_uri = self._model_storage_path(service_name=service_name, file_name=model_file_name)
 
         models = aiplatform.Model.list(filter=(f"display_name={registry_uri}"))
         
         if len(models) > 0:
-            model = models[0]
-        else:
-            raise Exception(f"model {model_name} not found in available services - maybe call MVC.create_model?")
-
-        if delete:
-            assert version is not None, "Must provide version to delete"
-            try:
-                print(version)
-                model.versioning_registry.delete_version(version=version)
-                if self.verbose:
-                    print(f"service {model_name}, model {model_file_name}, version {version} deleted")
-            except Exception as e:
-                print(f"model file version {version} not found or deleted {e}")
-
-                return False
-
-            return True
+            # model = models[0]
+            if latest_dev_version:
+                model = models[-1]
+            else:
+                model = [m for m in models if "default" in m.version_aliases][0]
+            return tf.keras.models.load_model(model.uri)
         
-        return tf.keras.models.load_model(model.uri)
+        return False
 
-    def predict_endpoint(self, model_name, x_instance: pd.DataFrame, x_batch: list[pd.DataFrame] = None):
+    def predict_endpoint(self, service_name: str, model_name: str, x_instance: pd.DataFrame | None = None, x_batch: list[pd.DataFrame] | None = None):
         assert x_instance is not None or x_batch is not None, "Must provide either x_instance or x_batch"
 
-        if model_name in self.endpoints.keys():
+        if model_name in self.services[service_name].endpoints:
             try:
                 if x_instance is not None:
-                    predictions = self.endpoints[model_name].predict(instances=x_instance)
+                    predictions = self.services[service_name].endpoints[model_name].predict(instances=x_instance)
                 else:
-                    predictions = self.endpoints[model_name].batch_predict(
+                    predictions = self.services[service_name].endpoints[model_name].batch_predict(
                         instances=x_batch, parameters={"confidence_threshold": 0.5}
                     )
                 return predictions
@@ -466,5 +307,5 @@ class ModelVersionController():
                 print(f"model service name {model_name}")
                 return None
         else:
-            print(f"model service name {model_name} not found in endpoints")
+            print(f"endpoint for model {model_name} for service {service_name} not found in endpoints")
             return None
