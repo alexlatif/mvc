@@ -235,16 +235,23 @@ class ModelVersionController():
         assert model_file_name
         return self.services[service_name].models[model_file_name]
 
+    def model_type(self, model_object) -> str | None:
+        if isinstance(model_object, tf.keras.Model):
+            return "tensorflow"
+        if isinstance(model_object, torch.nn.Module):
+            return "pytorch"
+        return None
+        
     # VERTEX MODELS
     @storage_driver
-    def save_model(self, model_object, service_name: str, model_file_name: str, garbage_collect: bool = True): 
+    def save_model(self, model_object, service_name: str, model_file_name: str, garbage_collect: bool = True) -> bool: 
         registry_uri = self._model_storage_path(service_name=service_name, file_name=model_file_name)
 
-        if type(object) == tf.keras.models.Model:
-            model_type = "tensorflow"
-        else:
-            print(type(model_object))
-            model_type = "pytorch"
+        model_type = self.model_type(model_object)
+
+        if model_type is None:
+            print("model type not supported")
+            return False
 
         model_type_check = self.services[service_name].models.get(model_file_name)
         if model_type_check is not None:
