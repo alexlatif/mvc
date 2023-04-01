@@ -263,7 +263,7 @@ class ModelVersionController():
             model_object.save(registry_uri)
         else:
             os.makedirs(registry_uri, exist_ok=True)
-            torch.save(model_object.state_dict(), os.path.join(registry_uri, 'model.pt'))
+            torch.save(model_object.state_dict(), os.path.join(registry_uri, 'model.pkl'))
         
         aiplatform.init(
             project=self.project_id,
