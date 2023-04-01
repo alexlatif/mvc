@@ -219,7 +219,7 @@ class ModelVersionController():
         
         return self.services[service_name].models[model_name]
 
-    def create_service_model(self, service_name: str, model_file_name: str, model) -> bool:
+    def create_service_model(self, service_name: str, model_file_name: str, model: aiplatform.Model, model_type: str) -> bool:
         try:
             default_version = int([m.version_id for m in model.versioning_registry.list_versions() if "default" in m.version_aliases][0])
         except:
@@ -229,7 +229,7 @@ class ModelVersionController():
             model_name=model_file_name,
             latest_version=model.version_id,
             default_version=default_version,
-            model_type=self.model_type,
+            model_type=model_type,
         )
         self.upload_model_meta(service_name=service_name, model_metas=model)
         assert model_file_name
@@ -304,7 +304,7 @@ class ModelVersionController():
             shutil.rmtree(registry_uri)
 
         if model_file_name not in self.services[service_name].models:
-            return self.create_service_model(service_name=service_name, model_file_name=model_file_name, model=model_uploaded)
+            return self.create_service_model(service_name=service_name, model_file_name=model_file_name, model=model_uploaded, model_type=model_type)
 
         # updating version
         self.services[service_name].models[model_file_name].latest_version = model_uploaded.version_id
