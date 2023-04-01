@@ -241,6 +241,11 @@ class ModelVersionController():
         if isinstance(model_object, torch.nn.Module):
             return "pytorch"
         return None
+    
+    def download_into_torch(self, model_uri: str, model_name: str):
+        model = torch.load(model_uri)
+        model.eval()
+        return model
         
     # VERTEX MODELS
     @storage_driver
@@ -339,7 +344,8 @@ class ModelVersionController():
             if model_type == "tensorflow":
                 return tf.keras.models.load_model(model.uri)
             else:
-                return torch.load(model.uri)
+                with open(model.uri, "rb") as f:
+                    return torch.load(f)
         
         return False
 
