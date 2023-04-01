@@ -1,5 +1,6 @@
 import os
 import shutil
+import pickle
 import pandas as pd
 from pydantic import BaseModel
 import tensorflow as tf
@@ -8,6 +9,7 @@ from google.cloud import storage, bigquery, aiplatform
 
 class McvModelModel(BaseModel):
     model_name: str
+    model_type: str
     latest_version: int
     default_version: int
     training_runs: list[dict] = []
@@ -36,25 +38,12 @@ def storage_driver(func):
 
 
 class ModelVersionController():
-    '''
-    ## End-to-End ML ops pipeline controller and collaboration interface built on Google Cloud.
-
-    Uses Google Cloud Storage to save datasets where data version controlling is handled by MVC.
-
-    Uses Vertex AI model registry to save model, versions and create training runs.
-
-    Uses Vertex AI to host endpoints and make predictions.
-
-    - Configure SERVICES_CONFIGED to specify which ML services MVC should be aware of.
-    - Set enviroment variables for credentials to GCP instance.
-    - Use Vertex AI GUI to set default model version for each service.
-    - Use Vertex AI GUI to deploy model to endpoint.
-    '''
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.project_id: str = os.environ["PROJECT_ID"]
         self.region: str = os.environ["REGION"]
         self.storage_client: storage.Client = None
+        self.model_type: str = "tensorflow"
         # self.bq_client: bigquery.Client = None
         self.services: dict[str, MvcServiceModel] = {} # service name
         self.service_config = os.environ["SERVICES_CONFIGED"].split(",")
@@ -76,7 +65,9 @@ class ModelVersionController():
             for model in aiplatform.Model.list():
                 if service_name in model.display_name:
                     file_name = model.display_name.split("/")[-1]
-                    self.create_service_model(service_name=service_name, model_file_name=file_name, model=model)
+                    self.download_model_meta(service_name=service_name, model_name=file_name)
+                    # model_meta_name = self._gen_model_meta_blob_name(service_name=service_name, model_name=file_name)
+                    # self.create_service_model(service_name=service_name, model_file_name=file_name, model=model)
 
             # prefetch endpoints
             for end in list(aiplatform.Endpoint.list()):
@@ -194,6 +185,45 @@ class ModelVersionController():
 
     def _model_storage_name(self, service_name: str, file_name: str) -> str:
         return f"{service_name}-{file_name}"
+    
+    def unpickle_model_meta(self, blob):
+        model_bytes = blob.download_as_bytes()
+        return pickle.loads(model_bytes)
+    
+    def _gen_model_meta_blob_name(service_name: str, model_name: str):
+        return f"{service_name}_{model_name}.pkl"
+
+    def upload_model_meta(self, service_name: str, model_metas: McvModelModel):
+        bucket_name = 'model_metadata'
+        blob_name = self._gen_model_meta_blob_name(service_name=service_name, model_name=model_metas.model_name)
+        model_bytes = pickle.dumps(model_metas)
+        bucket = self.storage_client.bucket(bucket_name)
+
+        if not bucket.exists():
+            bucket.create()
+
+        blob = bucket.blob(blob_name)
+
+        model_bytes = pickle.dumps(model_metas)
+        blob.upload_from_string(model_bytes, content_type='application/pickle')
+        uploaded_model_meta = self.unpickle_model_meta(blob)
+        self.services[service_name].models[model_metas.model_name] = uploaded_model_meta
+
+        return self.unpickle_model_meta(blob)
+
+    def download_model_meta(self, service_name: str, file_name: str):
+        bucket_name = 'model_metadata'
+        bucket = self.storage_client.bucket(bucket_name)
+        model_meta_name = self._gen_model_meta_blob_name(service_name=service_name, model_name=file_name)
+        blob = bucket.blob(model_meta_name)
+
+        if not blob.exists():
+            return None
+        
+        model_meta = self.unpickle_model_meta(blob)
+        self.services[service_name].models[file_name] = model_meta
+        
+        return self.services[service_name].models[file_name]
 
     def create_service_model(self, service_name: str, model_file_name: str, model) -> bool:
         try:
@@ -205,14 +235,22 @@ class ModelVersionController():
             model_name=model_file_name,
             latest_version=model.version_id,
             default_version=default_version,
+            model_type=self.model_type,
         )
-        self.services[service_name].models[model_file_name] = model
-        return True
+        self.upload_model_meta(service_name=service_name, model_metas=model)
+        assert model_file_name
+        return self.services[service_name].models[model_file_name]
 
     # VERTEX MODELS
     @storage_driver
     def save_model(self, model_object: tf.keras.models.Model, service_name: str, model_file_name: str, garbage_collect: bool = True): 
         registry_uri = self._model_storage_path(service_name=service_name, file_name=model_file_name)
+
+        model_type_check = self.services[service_name].models.get(model_file_name)
+        if model_type_check is not None:
+            if model_type_check.model_type != self.model_type:
+                print(f"trying to save a {self.model_type} model type to a {model_type_check.model_type} model")
+                return False
         
         model_object.save(registry_uri)
 
@@ -257,7 +295,9 @@ class ModelVersionController():
         if model_file_name not in self.services[service_name].models:
             return self.create_service_model(service_name=service_name, model_file_name=model_file_name, model=model_uploaded)
 
+        # updating version
         self.services[service_name].models[model_file_name].latest_version = model_uploaded.version_id
+        self.upload_model_meta(service_name=service_name, model_metas=self.services[service_name].models[model_file_name])
         return True
 
     @storage_driver
