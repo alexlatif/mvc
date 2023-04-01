@@ -306,7 +306,6 @@ class ModelVersionController():
 
         registry_uri = self._model_storage_path(service_name=service_name, file_name=model_file_name)
 
-        print("thithkafhskofhsf", registry_uri)
         models = aiplatform.Model.list(filter=(f"display_name={registry_uri}"))
 
         if len(models) > 0:
@@ -315,8 +314,8 @@ class ModelVersionController():
                 model = models[-1]
             else:
                 model = [m for m in models if "default" in m.version_aliases][0]
-                print("thithkafhskofhsf", model.uri)
-            # return tf.keras.models.load_model(model.uri)
+
+            return tf.keras.models.load_model(model.uri)
         
         return False
 
