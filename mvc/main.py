@@ -188,7 +188,7 @@ class ModelVersionController():
         model_bytes = blob.download_as_bytes()
         return pickle.loads(model_bytes)
     
-    def _gen_model_meta_blob_name(service_name: str, model_name: str):
+    def _gen_model_meta_blob_name(self, service_name: str, model_name: str):
         return f"{service_name}_{model_name}.pkl"
 
     def upload_model_meta(self, service_name: str, model_metas: McvModelModel):
@@ -219,9 +219,9 @@ class ModelVersionController():
             return None
         
         model_meta = self.unpickle_model_meta(blob)
-        self.services[service_name].models[file_name] = model_meta
+        self.services[service_name].models[model_name] = model_meta
         
-        return self.services[service_name].models[file_name]
+        return self.services[service_name].models[model_name]
 
     def create_service_model(self, service_name: str, model_file_name: str, model) -> bool:
         try:
