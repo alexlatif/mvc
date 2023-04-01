@@ -254,6 +254,7 @@ class ModelVersionController():
             return False
 
         model_type_check = self.services[service_name].models.get(model_file_name)
+        print("model type ", model_type, model_type_check.model_type)
         if model_type_check is not None:
             if model_type_check.model_type != model_type:
                 print(f"trying to save a {model_type} model type to a {model_type_check.model_type} model")
