@@ -211,10 +211,10 @@ class ModelVersionController():
 
         return self.unpickle_model_meta(blob)
 
-    def download_model_meta(self, service_name: str, file_name: str):
+    def download_model_meta(self, service_name: str, model_name: str):
         bucket_name = 'model_metadata'
         bucket = self.storage_client.bucket(bucket_name)
-        model_meta_name = self._gen_model_meta_blob_name(service_name=service_name, model_name=file_name)
+        model_meta_name = self._gen_model_meta_blob_name(service_name=service_name, model_name=model_name)
         blob = bucket.blob(model_meta_name)
 
         if not blob.exists():
