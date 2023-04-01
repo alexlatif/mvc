@@ -308,7 +308,8 @@ class ModelVersionController():
 
         print("thithkafhskofhsf", registry_uri)
         models = aiplatform.Model.list(filter=(f"display_name={registry_uri}"))
-        
+        print("thithkafhskofhsf", models.uri)
+
         if len(models) > 0:
             # model = models[0]
             if latest_dev_version:
