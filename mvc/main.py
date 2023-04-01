@@ -65,10 +65,8 @@ class ModelVersionController():
             for model in aiplatform.Model.list():
                 if service_name in model.display_name:
                     file_name = model.display_name.split("/")[-1]
+                    print("ththt", service_name)
                     self.download_model_meta(service_name=service_name, model_name=file_name)
-                    # model_meta_name = self._gen_model_meta_blob_name(service_name=service_name, model_name=file_name)
-                    # self.create_service_model(service_name=service_name, model_file_name=file_name, model=model)
-
             # prefetch endpoints
             for end in list(aiplatform.Endpoint.list()):
                 end_model = end.list_models()
