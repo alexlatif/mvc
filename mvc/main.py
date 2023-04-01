@@ -265,7 +265,7 @@ class ModelVersionController():
         else:
             print("saving pytorch model")
             os.makedirs(registry_uri, exist_ok=True)
-            torch.save(model_object.state_dict(), os.path.join(registry_uri, 'model.pt'))
+            torch.save(model_object.state_dict(), os.path.join(registry_uri, 'model.pb'))
         
         aiplatform.init(
             project=self.project_id,
