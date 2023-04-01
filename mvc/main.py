@@ -243,6 +243,7 @@ class ModelVersionController():
         if type(object) == tf.keras.models.Model:
             model_type = "tensorflow"
         else:
+            print(type(model_object))
             model_type = "pytorch"
 
         model_type_check = self.services[service_name].models.get(model_file_name)
