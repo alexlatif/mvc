@@ -242,10 +242,20 @@ class ModelVersionController():
             return "pytorch"
         return None
     
-    def download_into_torch(self, model_uri: str, model_name: str):
-        model = torch.load(model_uri)
-        model.eval()
-        return model
+    def load_torch_params(self, model_uri: str):
+        bucket_name = model_uri.split("//")[1].split("/")[0]
+
+        bucket = self.storage_client.bucket(bucket_name)
+        blobs = bucket.list_blobs(prefix="vertex_ai_auto_staging")
+
+        for blob in blobs:
+            if "saved_model.pb" in blob.name:
+                tmp_path = "/tmp/saved_model.pb"
+                blob.download_to_filename(tmp_path)
+                model = torch.load(tmp_path)
+                os.remove(tmp_path)
+                return model
+        return None
         
     # VERTEX MODELS
     @storage_driver
@@ -344,8 +354,7 @@ class ModelVersionController():
             if model_type == "tensorflow":
                 return tf.keras.models.load_model(model.uri)
             else:
-                with open(model.uri, "rb") as f:
-                    return torch.load(f)
+                return self.load_torch_params(model.uri)
         
         return False
 
