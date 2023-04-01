@@ -315,7 +315,7 @@ class ModelVersionController():
                 model = models[-1]
             else:
                 model = [m for m in models if "default" in m.version_aliases][0]
-                print("thithkafhskofhsf", models.uri)
+                print("thithkafhskofhsf", model.uri)
             return tf.keras.models.load_model(model.uri)
         
         return False
