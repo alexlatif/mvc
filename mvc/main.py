@@ -308,7 +308,6 @@ class ModelVersionController():
 
         print("thithkafhskofhsf", registry_uri)
         models = aiplatform.Model.list(filter=(f"display_name={registry_uri}"))
-        print("thithkafhskofhsf", models.uri)
 
         if len(models) > 0:
             # model = models[0]
@@ -316,6 +315,7 @@ class ModelVersionController():
                 model = models[-1]
             else:
                 model = [m for m in models if "default" in m.version_aliases][0]
+                print("thithkafhskofhsf", models.uri)
             return tf.keras.models.load_model(model.uri)
         
         return False
