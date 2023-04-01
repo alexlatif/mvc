@@ -306,11 +306,11 @@ class ModelVersionController():
             shutil.rmtree(registry_uri)
 
         if model_file_name not in self.services[service_name].models:
-            return self.create_service_model(service_name=service_name, model_file_name=model_file_name, model=model_uploaded, model_type=model_type)
-
-        # updating version
-        self.services[service_name].models[model_file_name].latest_version = model_uploaded.version_id
-        self.upload_model_meta(service_name=service_name, model_metas=self.services[service_name].models[model_file_name])
+            self.create_service_model(service_name=service_name, model_file_name=model_file_name, model=model_uploaded, model_type=model_type)
+        else:
+            # updating version
+            self.services[service_name].models[model_file_name].latest_version = model_uploaded.version_id
+            self.upload_model_meta(service_name=service_name, model_metas=self.services[service_name].models[model_file_name])
         return True
 
     @storage_driver
