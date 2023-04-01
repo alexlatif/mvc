@@ -181,9 +181,6 @@ class ModelVersionController():
     def _model_storage_path(self, service_name: str, file_name: str) -> str:
         return f"{service_name}/{file_name}"
 
-    def _model_storage_name(self, service_name: str, file_name: str) -> str:
-        return f"{service_name}-{file_name}"
-    
     def unpickle_model_meta(self, blob):
         model_bytes = blob.download_as_bytes()
         return pickle.loads(model_bytes)
@@ -309,6 +306,7 @@ class ModelVersionController():
 
         registry_uri = self._model_storage_path(service_name=service_name, file_name=model_file_name)
 
+        print("thithkafhskofhsf", registry_uri)
         models = aiplatform.Model.list(filter=(f"display_name={registry_uri}"))
         
         if len(models) > 0:
