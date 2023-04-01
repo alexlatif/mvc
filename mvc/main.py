@@ -253,7 +253,6 @@ class ModelVersionController():
             print("model type not supported")
             return False
 
-        print("in ere")
         model_type_check = self.services[service_name].models.get(model_file_name)
         if model_type_check is not None:
             if model_type_check.model_type != model_type:
@@ -263,7 +262,6 @@ class ModelVersionController():
         if model_type == "tensorflow":
             model_object.save(registry_uri)
         else:
-            print("saving pytorch model")
             os.makedirs(registry_uri, exist_ok=True)
             torch.save(model_object.state_dict(), os.path.join(registry_uri, 'saved_model.pb'))
         
