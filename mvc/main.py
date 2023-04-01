@@ -3,6 +3,7 @@ import shutil
 import pickle
 import pandas as pd
 from pydantic import BaseModel
+import torch
 import tensorflow as tf
 from google.cloud import storage, bigquery, aiplatform
 
@@ -43,7 +44,6 @@ class ModelVersionController():
         self.project_id: str = os.environ["PROJECT_ID"]
         self.region: str = os.environ["REGION"]
         self.storage_client: storage.Client = None
-        self.model_type: str = "tensorflow"
         # self.bq_client: bigquery.Client = None
         self.services: dict[str, MvcServiceModel] = {} # service name
         self.service_config = os.environ["SERVICES_CONFIGED"].split(",")
@@ -65,7 +65,6 @@ class ModelVersionController():
             for model in aiplatform.Model.list():
                 if service_name in model.display_name:
                     file_name = model.display_name.split("/")[-1]
-                    print("ththt", service_name)
                     self.download_model_meta(service_name=service_name, model_name=file_name)
             # prefetch endpoints
             for end in list(aiplatform.Endpoint.list()):
@@ -238,17 +237,26 @@ class ModelVersionController():
 
     # VERTEX MODELS
     @storage_driver
-    def save_model(self, model_object: tf.keras.models.Model, service_name: str, model_file_name: str, garbage_collect: bool = True): 
+    def save_model(self, model_object, service_name: str, model_file_name: str, garbage_collect: bool = True): 
         registry_uri = self._model_storage_path(service_name=service_name, file_name=model_file_name)
+
+        if type(object) == tf.keras.models.Model:
+            model_type = "tensorflow"
+        else:
+            model_type = "pytorch"
 
         model_type_check = self.services[service_name].models.get(model_file_name)
         if model_type_check is not None:
-            if model_type_check.model_type != self.model_type:
-                print(f"trying to save a {self.model_type} model type to a {model_type_check.model_type} model")
+            if model_type_check.model_type != model_type:
+                print(f"trying to save a {model_type} model type to a {model_type_check.model_type} model")
                 return False
+            
+        if model_type == "tensorflow":
+            model_object.save(registry_uri)
+        else:
+            os.makedirs(registry_uri, exist_ok=True)
+            torch.save(model_object.state_dict(), os.path.join(registry_uri, 'model.pt'))
         
-        model_object.save(registry_uri)
-
         aiplatform.init(
             project=self.project_id,
             location=self.region,
@@ -296,8 +304,12 @@ class ModelVersionController():
         return True
 
     @storage_driver
-    def load_model(self, service_name: str, model_file_name: str, latest_dev_version: bool = False) -> tf.keras.models.Model | bool:
-        
+    def load_model(self, service_name: str, model_file_name: str, latest_dev_version: bool = False):
+        '''
+        NOTE: when using this function with PYTORCH you will need to load_dict_state from the original model architecture
+        - model = mvc.load_model(...)
+        -> ModelArchitecture.load_state_dict(model)
+        '''
         aiplatform.init(
             project=self.project_id,
             location=self.region,
@@ -315,7 +327,11 @@ class ModelVersionController():
             else:
                 model = [m for m in models if "default" in m.version_aliases][0]
 
-            return tf.keras.models.load_model(model.uri)
+            model_type = self.services[service_name].models[model_file_name].model_type
+            if model_type == "tensorflow":
+                return tf.keras.models.load_model(model.uri)
+            else:
+                return torch.load(model.uri)
         
         return False
 
