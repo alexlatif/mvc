@@ -89,7 +89,7 @@ class ModelVersionController():
         file_path = self.gen_file_path(dataset_name=dataset_name, version=version, file_format=file_format)
         return f"gs://{service_name}/{file_path}"
     
-    def gen_gcs_file_path(self, service_name: str, dataset_name: str, version: str | None = None, file_format: str = "csv"):
+    def gen_gcs_file_path(self, service_name: str, dataset_name: str, version: typing.Union[str, None] = None, file_format: str = "csv"):
         datasets = [d for d in self.services[service_name].datasets if dataset_name in d]
 
         if not version:
@@ -142,7 +142,7 @@ class ModelVersionController():
 
         return datasets
 
-    def get_dataset(self, service_name: str, dataset_name: str, version: str | None = None, file_format: str = "csv"):
+    def get_dataset(self, service_name: str, dataset_name: str, version: typing.Union[str, None] = None, file_format: str = "csv"):
         datasets = [d for d in self.services[service_name].datasets if dataset_name in d]
         file_path = self.gen_gcs_file_path(service_name=service_name, dataset_name=dataset_name, version=version, file_format=file_format)
         for d in datasets:
@@ -154,7 +154,7 @@ class ModelVersionController():
         return pd.DataFrame()
 
     @storage_driver
-    def _delete_datasets(self, service_name: str, dataset_name: str, version: str | None = None, file_format: str = "csv"):
+    def _delete_datasets(self, service_name: str, dataset_name: str, version: typing.Union[str, None] = None, file_format: str = "csv"):
         bucket = self.storage_client.bucket(service_name)
         blobs = bucket.list_blobs()
         for blob in blobs:
@@ -166,7 +166,7 @@ class ModelVersionController():
                 if dataset_name in blob.name:
                     blob.delete()
 
-    def create_vertex_dataset(self, service_name: str, dataset_name: str, version: str | None = None):
+    def create_vertex_dataset(self, service_name: str, dataset_name: str, version: typing.Union[str, None] = None):
         file_path = self.gen_gcs_file_path(service_name=service_name, dataset_name=dataset_name, version=version)
 
         aiplatform.init(
@@ -226,7 +226,7 @@ class ModelVersionController():
         
         return self.services[service_name].models[model_name]
 
-    def model_type(self, model_object) -> str | None:
+    def model_type(self, model_object) -> typing.Union[str, None]:
         if isinstance(model_object, tf.keras.Model):
             return "tensorflow"
         if isinstance(model_object, torch.nn.Module):
@@ -373,7 +373,7 @@ class ModelVersionController():
                     
         return False
 
-    def predict_endpoint(self, service_name: str, model_name: str, x_instance: pd.DataFrame | None = None, x_batch: list[pd.DataFrame] | None = None):
+    def predict_endpoint(self, service_name: str, model_name: str, x_instance: typing.Union[pd.DataFrame, None] = None, x_batch: typing.Union[list[pd.DataFrame], None] = None):
         assert x_instance is not None or x_batch is not None, "Must provide either x_instance or x_batch"
         end_name = f"{service_name}/{model_name}"
         if end_name in self.services[service_name].endpoints:
