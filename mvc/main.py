@@ -1,6 +1,7 @@
 import os
 import shutil
 import pickle
+import typing
 import pandas as pd
 from pydantic import BaseModel
 import torch
@@ -8,15 +9,21 @@ import tensorflow as tf
 from google.cloud import storage, bigquery, aiplatform
 
 
+class MvcModelVersion(BaseModel):
+    version_id: int
+    architecture: typing.Any = None
+    params: dict = {}
+    training_runs: list[dict] = []
+    prediction_runs: list[dict] = []
+    metric_summary: list[dict] = []
+    tensorboards: list[dict] = []
+
 class McvModelModel(BaseModel):
     model_name: str
     model_type: str
     latest_version: int
     default_version: int
-    training_runs: list[dict] = []
-    prediction_runs: list[dict] = []
-    metric_summary: list[dict] = []
-    tensorboards: list[dict] = []
+    versions: list[MvcModelVersion]
 
 class MvcServiceModel(BaseModel):
     datasets: list[str]
@@ -219,22 +226,6 @@ class ModelVersionController():
         
         return self.services[service_name].models[model_name]
 
-    def create_service_model(self, service_name: str, model_file_name: str, model: aiplatform.Model, model_type: str) -> bool:
-        try:
-            default_version = int([m.version_id for m in model.versioning_registry.list_versions() if "default" in m.version_aliases][0])
-        except:
-            default_version = 0
-
-        model = McvModelModel(
-            model_name=model_file_name,
-            latest_version=model.version_id,
-            default_version=default_version,
-            model_type=model_type,
-        )
-        self.upload_model_meta(service_name=service_name, model_metas=model)
-        assert model_file_name
-        return self.services[service_name].models[model_file_name]
-
     def model_type(self, model_object) -> str | None:
         if isinstance(model_object, tf.keras.Model):
             return "tensorflow"
@@ -242,7 +233,7 @@ class ModelVersionController():
             return "pytorch"
         return None
     
-    def load_torch_params(self, model_uri: str):
+    def load_torch(self, model_uri: str):
         bucket_name = model_uri.split("//")[1].split("/")[0]
 
         bucket = self.storage_client.bucket(bucket_name)
@@ -253,13 +244,16 @@ class ModelVersionController():
                 tmp_path = "/tmp/saved_model.pb"
                 blob.download_to_filename(tmp_path)
                 model = torch.load(tmp_path)
-                os.remove(tmp_path)
+
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
+
                 return model
         return None
         
     # VERTEX MODELS
     @storage_driver
-    def save_model(self, model_object, service_name: str, model_file_name: str, garbage_collect: bool = True) -> bool: 
+    def save_model(self, model_object: typing.Any, service_name: str, model_file_name: str, garbage_collect: bool = True) -> bool: 
         registry_uri = self._model_storage_path(service_name=service_name, file_name=model_file_name)
 
         model_type = self.model_type(model_object)
@@ -278,7 +272,7 @@ class ModelVersionController():
             model_object.save(registry_uri)
         else:
             os.makedirs(registry_uri, exist_ok=True)
-            torch.save(model_object.state_dict(), os.path.join(registry_uri, 'saved_model.pb'))
+            torch.save(model_object, os.path.join(registry_uri, 'saved_model.pb'))
         
         aiplatform.init(
             project=self.project_id,
@@ -318,21 +312,40 @@ class ModelVersionController():
         if garbage_collect:
             shutil.rmtree(registry_uri)
 
+
+        model_version_meta = MvcModelVersion(version_id=model_uploaded.version_id)
+
         if model_file_name not in self.services[service_name].models:
-            self.create_service_model(service_name=service_name, model_file_name=model_file_name, model=model_uploaded, model_type=model_type)
+            try:
+                default_version = int([m.version_id for m in model_uploaded.versioning_registry.list_versions() if "default" in m.version_aliases][0])
+            except:
+                default_version = 0
+
+            model_metas = McvModelModel(
+                model_name=model_file_name,
+                latest_version=model_uploaded.version_id,
+                default_version=default_version,
+                model_type=model_type,
+                versions=[model_version_meta]
+            )
+            self.upload_model_meta(service_name=service_name, model_metas=model_metas)
         else:
             # updating version
             self.services[service_name].models[model_file_name].latest_version = model_uploaded.version_id
-            self.upload_model_meta(service_name=service_name, model_metas=self.services[service_name].models[model_file_name])
+            self.services[service_name].models[model_file_name].versions.append(model_version_meta)
+            updated_metas = self.services[service_name].models[model_file_name]
+            self.upload_model_meta(service_name=service_name, model_metas=updated_metas)
         return True
 
     @storage_driver
-    def load_model(self, service_name: str, model_file_name: str, latest_dev_version: bool = False):
+    def load_model(self, service_name: str, model_file_name: str, model_architecture: typing.Any = None, model_parameters: dict = None, latest_dev_version: bool = False):
         '''
         NOTE: when using this function with PYTORCH you will need to load_dict_state from the original model architecture
         - model = mvc.load_model(...)
         -> ModelArchitecture.load_state_dict(model)
         '''
+        assert service_name in self.services, f"service {service_name} not found"
+        assert model_file_name in self.services[service_name].models, f"model {model_file_name} not found in service {service_name}"
         aiplatform.init(
             project=self.project_id,
             location=self.region,
@@ -354,8 +367,10 @@ class ModelVersionController():
             if model_type == "tensorflow":
                 return tf.keras.models.load_model(model.uri)
             else:
-                return self.load_torch_params(model.uri)
-        
+                # does not support loading directly from uri hence this method solves
+                model =  self.load_torch(model.uri)
+                return model
+                    
         return False
 
     def predict_endpoint(self, service_name: str, model_name: str, x_instance: pd.DataFrame | None = None, x_batch: list[pd.DataFrame] | None = None):
