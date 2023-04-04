@@ -244,13 +244,13 @@ class ModelVersionController():
                 tmp_path = "/tmp/saved_model.pb"
                 blob.download_to_filename(tmp_path)
                 print("downloading model")
-                model = torch.load(tmp_path)
+                model_dict = torch.load(tmp_path)
                 print("model downloaded")
 
                 if os.path.exists(tmp_path):
                     os.remove(tmp_path)
 
-                return model
+                return model_dict
         return None
         
     # VERTEX MODELS
@@ -340,7 +340,7 @@ class ModelVersionController():
         return True
 
     @storage_driver
-    def load_model(self, service_name: str, model_file_name: str, model_architecture: typing.Any = None, model_parameters: dict = None, latest_dev_version: bool = False):
+    def load_model(self, service_name: str, model_file_name: str, model_architecture: typing.Any = None, model_parameters: dict = None, latest_dev_version: bool = True):
         '''
         NOTE: when using this function with PYTORCH you will need to load_dict_state from the original model architecture
         - model = mvc.load_model(...)
@@ -365,12 +365,31 @@ class ModelVersionController():
             else:
                 model = [m for m in models if "default" in m.version_aliases][0]
 
-            model_type = self.services[service_name].models[model_file_name].model_type
+            model_metas = self.services[service_name].models[model_file_name]
+            model_type = model_metas.model_type
             if model_type == "tensorflow":
                 return tf.keras.models.load_model(model.uri)
             else:
-                # does not support loading directly from uri hence this method solves
-                model =  self.load_torch(model.uri)
+                # NOTE
+                # pytorch integration with Vertex only allows for state_dict
+                # to be saved and loaded by the model as it needs to reference the archicture code
+                # Vertex is unable to store the actual object data without referencing the code location
+                model_state =  self.load_torch(model.uri)
+
+                if model_architecture is not None and model_parameters is not None:
+                    arch = model_architecture
+                    params = model_parameters
+                else:
+                    version_found = [v for v in model_metas.versions if v.version_id == model.version_id]
+                    if len(version_found) > 0:
+                        arch = version_found[0].model_architecture
+                        params = version_found[0].model_parameters
+                    else:
+                        return False
+
+                model = arch(**params)
+                model.load_state_dict(model_state)
+                model.eval()
                 return model
                     
         return False
