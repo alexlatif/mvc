@@ -337,6 +337,7 @@ class ModelVersionController():
             self.services[service_name].models[model_file_name].versions.append(model_version_meta)
             updated_metas = self.services[service_name].models[model_file_name]
             self.upload_model_meta(service_name=service_name, model_metas=updated_metas)
+
         return True
 
     @storage_driver
@@ -382,17 +383,17 @@ class ModelVersionController():
                 else:
                     version_found = [v for v in model_metas.versions if v.version_id == int(model.version_id)]
                     if len(version_found) > 0:
-                        arch = version_found[0].model_architecture
-                        params = version_found[0].model_parameters
+                        arch = version_found[0].architecture
+                        params = version_found[0].params
                     else:
-                        return False
+                        return None
 
                 model = arch(**params)
                 model.load_state_dict(model_state)
                 model.eval()
                 return model_state
                     
-        return False
+        return None
 
     def predict_endpoint(self, service_name: str, model_name: str, x_instance: typing.Union[pd.DataFrame, None] = None, x_batch: typing.Union[list[pd.DataFrame], None] = None):
         assert x_instance is not None or x_batch is not None, "Must provide either x_instance or x_batch"
