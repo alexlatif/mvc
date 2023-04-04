@@ -376,21 +376,21 @@ class ModelVersionController():
                 # Vertex is unable to store the actual object data without referencing the code location
                 model_state =  self.load_torch(model.uri)
 
-                if model_architecture is not None and model_parameters is not None:
-                    arch = model_architecture
-                    params = model_parameters
-                else:
-                    version_found = [v for v in model_metas.versions if v.version_id == model.version_id]
-                    if len(version_found) > 0:
-                        arch = version_found[0].model_architecture
-                        params = version_found[0].model_parameters
-                    else:
-                        return False
+                # if model_architecture is not None and model_parameters is not None:
+                #     arch = model_architecture
+                #     params = model_parameters
+                # else:
+                #     version_found = [v for v in model_metas.versions if v.version_id == model.version_id]
+                #     if len(version_found) > 0:
+                #         arch = version_found[0].model_architecture
+                #         params = version_found[0].model_parameters
+                #     else:
+                #         return False
 
-                model = arch(**params)
-                model.load_state_dict(model_state)
-                model.eval()
-                return model
+                # model = arch(**params)
+                # model.load_state_dict(model_state)
+                # model.eval()
+                return model_state
                     
         return False
 
