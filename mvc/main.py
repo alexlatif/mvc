@@ -380,7 +380,7 @@ class ModelVersionController():
                     arch = model_architecture
                     params = model_parameters
                 else:
-                    version_found = [v for v in model_metas.versions if v.version_id == model.version_id]
+                    version_found = [v for v in model_metas.versions if v.version_id == int(model.version_id)]
                     if len(version_found) > 0:
                         arch = version_found[0].model_architecture
                         params = version_found[0].model_parameters
