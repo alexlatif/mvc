@@ -243,7 +243,9 @@ class ModelVersionController():
             if "saved_model.pb" in blob.name:
                 tmp_path = "/tmp/saved_model.pb"
                 blob.download_to_filename(tmp_path)
+                print("downloading model")
                 model = torch.load(tmp_path)
+                print("model downloaded")
 
                 if os.path.exists(tmp_path):
                     os.remove(tmp_path)
