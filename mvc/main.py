@@ -11,7 +11,6 @@ from google.cloud import storage, bigquery, aiplatform
 
 class MvcModelVersion(BaseModel):
     version_id: int
-    architecture: typing.Any = None
     params: dict = {}
     training_runs: list[dict] = []
     prediction_runs: list[dict] = []
@@ -130,11 +129,17 @@ class ModelVersionController():
         if not init:
             assert service_name in self.services, "service name not in CONFIG"
 
+        print("heree")
         bucket = self.storage_client.bucket(service_name)
+        print("note here", bucket.exists())
         if not bucket.exists():
+            print("creating")
             bucket.create()
+            print("not created")
             return []
+        print("blobbing")
         blobs = bucket.list_blobs()
+        print("fial at blob")
         datasets = [b.name for b in blobs if "vertex_ai_auto_staging" not in b.name]
 
         if not init:
@@ -412,14 +417,13 @@ class ModelVersionController():
 
         models = aiplatform.Model.list(filter=(f"display_name={registry_uri}"))
 
-        if len(models) > 0:
-            if latest_dev_version:
-                model = self.get_latest_model_version(service_name=service_name, model_file_name=model_file_name, model=models[0])
-            else:
-                model = models[0]
-
-        print("version", model.version_id)
-
+        if len(models) < 1:
+            return None
+            # if latest_dev_version:
+            #     model = self.get_latest_model_version(service_name=service_name, model_file_name=model_file_name, model=models[0])
+            # else:
+            #     model = models[0]
+        model = models[0]
         versions = self.services[service_name].models[model_file_name].versions
         version_found = [v for v in versions if v.version_id == int(model.version_id)]
         if len(version_found) > 0:
