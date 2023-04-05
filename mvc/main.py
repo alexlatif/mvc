@@ -132,7 +132,10 @@ class ModelVersionController():
         buckets_avail = [b.name for b in self.storage_client.list_buckets()]
         if service_name not in buckets_avail:
             print(f"creating new bucket with service name {service_name}")
-            self.storage_client.create_bucket(service_name)
+            try:
+                self.storage_client.create_bucket(service_name)
+            except Exception as e:
+                print(f"bucket {service_name} already exists - error {e}")
         bucket = self.storage_client.bucket(service_name)
         blobs = bucket.list_blobs()
         datasets = [b.name for b in blobs if "vertex_ai_auto_staging" not in b.name]
