@@ -400,9 +400,11 @@ class ModelVersionController():
         models = aiplatform.Model.list(filter=(f"display_name={registry_uri}"))
 
         if latest_dev_version:
+            print("latest_dev_version")
             model = models[-1]
             for m in models:
-                if m.version_id > model.version_id:
+                print("version version_id", m.version_id)
+                if m.version_id >= model.version_id:
                     model = m
         else:
             model = [m for m in models if "default" in m.version_aliases][0]
