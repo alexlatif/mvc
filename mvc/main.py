@@ -349,6 +349,20 @@ class ModelVersionController():
 
         return True
 
+    def get_latest_model_version(self, service_name: str, model_file_name: str, model: aiplatform.Model) -> aiplatform.Model:
+        aiplatform.init(
+            project=self.project_id,
+            location=self.region,
+            staging_bucket=f"gs://{service_name}",
+        )
+        registry_uri = self._model_storage_path(service_name=service_name, file_name=model_file_name)
+        models = aiplatform.Model.list(filter=(f"display_name={registry_uri}"))
+        model = models[0]
+        for m in models[0].versioning_registry.list_versions():
+            if int(model.version_id) < int(m.version_id):
+                model = m
+        return model
+
     @storage_driver
     def load_model(self, service_name: str, model_file_name: str, latest_dev_version: bool = True):
         '''
@@ -369,11 +383,10 @@ class ModelVersionController():
         models = aiplatform.Model.list(filter=(f"display_name={registry_uri}"))
 
         if len(models) > 0:
-            # model = models[0]
             if latest_dev_version:
-                model = models[-1]
+                model = self.get_latest_model_version(models[0])
             else:
-                model = [m for m in models if "default" in m.version_aliases][0]
+                model = models[0]
 
             model_metas = self.services[service_name].models[model_file_name]
             model_type = model_metas.model_type
@@ -399,15 +412,11 @@ class ModelVersionController():
 
         models = aiplatform.Model.list(filter=(f"display_name={registry_uri}"))
 
-        if latest_dev_version:
-            print("latest_dev_version")
-            model = models[-1]
-            for m in models:
-                print("version version_id", m.version_id)
-                if m.version_id >= model.version_id:
-                    model = m
-        else:
-            model = [m for m in models if "default" in m.version_aliases][0]
+        if len(models) > 0:
+            if latest_dev_version:
+                model = self.get_latest_model_version(models[0])
+            else:
+                model = models[0]
 
         print("version", model.version_id)
 
@@ -417,7 +426,7 @@ class ModelVersionController():
             params = version_found[0].params
         else:
             version_ids = [v.version_id for v in versions]
-            print(f"model version {model.version_id} not found in {version_ids}")
+            print(f"model version metadata {model.version_id} not found in {version_ids}")
             return None
 
         print("params", params)
