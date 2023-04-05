@@ -310,7 +310,7 @@ class ModelVersionController():
                 # container_predict_route="/predict",
                 # container_health_route="/health",
                 serving_container_image_uri=os.environ["MODEL_PREDICT_CONTAINER_URI"],
-                is_default_version=False,
+                is_default_version=True,
                 parent_model=parent_model,
                 # version_description="This is the first version of the model",
             )
