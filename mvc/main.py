@@ -255,7 +255,12 @@ class ModelVersionController():
         
     # VERTEX MODELS
     @storage_driver
-    def save_model(self, model_object: typing.Any, service_name: str, model_file_name: str, garbage_collect: bool = True) -> bool: 
+    def save_model(self, model_object: typing.Any, service_name: str, model_file_name: str, model_params: dict = None, garbage_collect: bool = True) -> bool: 
+        '''
+        NOTE: model_params must be passed down for pytorch models to create the best version controlling available given pytorch load procedure
+        # this can only be improved further by saving the actual model architecture class (along with its module) - practically infeasible
+        # in tensorflow life is simpler (mostly)
+        '''
         registry_uri = self._model_storage_path(service_name=service_name, file_name=model_file_name)
 
         model_type = self.model_type(model_object)
@@ -263,12 +268,13 @@ class ModelVersionController():
         if model_type is None:
             print("model type not supported")
             return False
+        
+        if model_type == "pytorch":
+            assert model_params != None, "must save model_params for load procedure with pytorch models"
 
         model_type_check = self.services[service_name].models.get(model_file_name)
         if model_type_check is not None:
-            if model_type_check.model_type != model_type:
-                print(f"ERROR SAVING: trying to save a {model_type} model type to a {model_type_check.model_type} model")
-                return False
+            assert model_type_check.model_type != model_type, f"ERROR SAVING: trying to save a {model_type} model type to a {model_type_check.model_type} model"
             
         if model_type == "tensorflow":
             model_object.save(registry_uri)
@@ -315,6 +321,10 @@ class ModelVersionController():
             shutil.rmtree(registry_uri)
 
 
+        if model_params is not None:
+            model_version_meta = MvcModelVersion(version_id=model_uploaded.version_id, params=model_params)
+        else:
+            assert model_type != "pytorch", "pytorch models must save model params for reproducibility"
         model_version_meta = MvcModelVersion(version_id=model_uploaded.version_id)
 
         if model_file_name not in self.services[service_name].models:
@@ -341,7 +351,7 @@ class ModelVersionController():
         return True
 
     @storage_driver
-    def load_model(self, service_name: str, model_file_name: str, model_architecture: typing.Any = None, model_parameters: dict = None, latest_dev_version: bool = True):
+    def load_model(self, service_name: str, model_file_name: str, latest_dev_version: bool = True):
         '''
         NOTE: when using this function with PYTORCH you will need to load_dict_state from the original model architecture
         - model = mvc.load_model(...)
@@ -371,29 +381,45 @@ class ModelVersionController():
             if model_type == "tensorflow":
                 return tf.keras.models.load_model(model.uri)
             else:
-                # NOTE
-                # pytorch integration with Vertex only allows for state_dict
-                # to be saved and loaded by the model as it needs to reference the archicture code
-                # Vertex is unable to store the actual object data without referencing the code location
                 model_state =  self.load_torch(model.uri)
-
-                if model_architecture is not None and model_parameters is not None:
-                    arch = model_architecture
-                    params = model_parameters
-                else:
-                    version_found = [v for v in model_metas.versions if v.version_id == int(model.version_id)]
-                    if len(version_found) > 0:
-                        arch = version_found[0].architecture
-                        params = version_found[0].params
-                    else:
-                        return None
-
-                model = arch(**params)
-                model.load_state_dict(model_state)
-                model.eval()
                 return model_state
                     
         return None
+    
+
+    def load_torch_model(self, service_name: str, model_file_name: str, model_architecture: dict = None, latest_dev_version: bool = True):
+        '''
+        Pytorch integration with Vertex only allows for state_dict to be saved and loaded
+        Python requires module access so classes cannot be saved in isolation
+        Hence this function is required for pytorch models where the architecture code is passed down
+        NOTE: model is loaded with correct parameters as they reference the parameters saved for the specific model version
+        '''
+        model_state = self.load_model(service_name=service_name, model_file_name=model_file_name, latest_dev_version=latest_dev_version)
+
+        registry_uri = self._model_storage_path(service_name=service_name, file_name=model_file_name)
+
+        models = aiplatform.Model.list(filter=(f"display_name={registry_uri}"))
+
+        if latest_dev_version:
+            model = models[-1]
+        else:
+            model = [m for m in models if "default" in m.version_aliases][0]
+
+        print("version", model.version_id)
+
+        versions = self.services[service_name].models[model_file_name].versions
+        version_found = [v for v in versions if v.version_id == int(model.version_id)]
+        if len(version_found) > 0:
+            params = version_found[0].params
+        else:
+            version_ids = [v.version_id for v in versions]
+            print(f"model version {model.version_id} not found in {version_ids}")
+            return None
+
+        model = model_architecture(**params)
+        model.load_state_dict(model_state)
+        model.eval()
+        return model
 
     def predict_endpoint(self, service_name: str, model_name: str, x_instance: typing.Union[pd.DataFrame, None] = None, x_batch: typing.Union[list[pd.DataFrame], None] = None):
         assert x_instance is not None or x_batch is not None, "Must provide either x_instance or x_batch"
