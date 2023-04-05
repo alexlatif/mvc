@@ -401,6 +401,9 @@ class ModelVersionController():
 
         if latest_dev_version:
             model = models[-1]
+            for m in models:
+                if m.version_id > model.version_id:
+                    model = m
         else:
             model = [m for m in models if "default" in m.version_aliases][0]
 
