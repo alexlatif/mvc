@@ -129,17 +129,12 @@ class ModelVersionController():
         if not init:
             assert service_name in self.services, "service name not in CONFIG"
 
-        print("heree")
+        buckets_avail = [b.name for b in self.storage_client.list_buckets()]
+        if service_name not in buckets_avail:
+            print(f"creating new bucket with service name {service_name}")
+            self.storage_client.create_bucket(service_name)
         bucket = self.storage_client.bucket(service_name)
-        print("note here", bucket.exists())
-        if not bucket.exists():
-            print("creating")
-            bucket.create()
-            print("not created")
-            return []
-        print("blobbing")
         blobs = bucket.list_blobs()
-        print("fial at blob")
         datasets = [b.name for b in blobs if "vertex_ai_auto_staging" not in b.name]
 
         if not init:
