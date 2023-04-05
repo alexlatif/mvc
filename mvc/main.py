@@ -274,7 +274,7 @@ class ModelVersionController():
 
         model_type_check = self.services[service_name].models.get(model_file_name)
         if model_type_check is not None:
-            assert model_type_check.model_type != model_type, f"ERROR SAVING: trying to save a {model_type} model type to a {model_type_check.model_type} model"
+            assert model_type_check.model_type == model_type, f"ERROR SAVING: trying to save a {model_type} model type to a {model_type_check.model_type} model"
             
         if model_type == "tensorflow":
             model_object.save(registry_uri)
