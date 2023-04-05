@@ -416,6 +416,8 @@ class ModelVersionController():
             print(f"model version {model.version_id} not found in {version_ids}")
             return None
 
+        print("params", params)
+        print("model_state", version_found[0])
         model = model_architecture(**params)
         model.load_state_dict(model_state)
         model.eval()
