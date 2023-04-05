@@ -384,7 +384,7 @@ class ModelVersionController():
 
         if len(models) > 0:
             if latest_dev_version:
-                model = self.get_latest_model_version(models[0])
+                model = self.get_latest_model_version(service_name=service_name, model_file_name=model_file_name, model=models[0])
             else:
                 model = models[0]
 
@@ -414,7 +414,7 @@ class ModelVersionController():
 
         if len(models) > 0:
             if latest_dev_version:
-                model = self.get_latest_model_version(models[0])
+                model = self.get_latest_model_version(service_name=service_name, model_file_name=model_file_name, model=models[0])
             else:
                 model = models[0]
 
