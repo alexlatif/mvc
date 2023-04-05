@@ -324,8 +324,7 @@ class ModelVersionController():
         if model_params is not None:
             model_version_meta = MvcModelVersion(version_id=model_uploaded.version_id, params=model_params)
         else:
-            assert model_type != "pytorch", "pytorch models must save model params for reproducibility"
-        model_version_meta = MvcModelVersion(version_id=model_uploaded.version_id)
+            model_version_meta = MvcModelVersion(version_id=model_uploaded.version_id)
 
         if model_file_name not in self.services[service_name].models:
             try:
